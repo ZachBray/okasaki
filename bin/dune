@@ -1,0 +1,5 @@
+(executable
+ (public_name okasaki)
+ (name main)
+ (preprocess (pps ppx_deriving.show))
+ (libraries batteries okasaki))
