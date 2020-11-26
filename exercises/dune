@@ -1,0 +1,9 @@
+(library
+ (name exercises)
+ (inline_tests)
+ (flags -open Core_kernel)
+ (library_flags -linkall)
+ (ocamlopt_flags -O3)
+ (preprocess
+  (pps ppx_jane))
+ (libraries core_kernel))

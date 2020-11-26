@@ -1,0 +1,5 @@
+(executable
+ (name bench)
+ (modules bench)
+ (ocamlopt_flags -O3)
+ (libraries exercises core_bench.inline_benchmarks))
