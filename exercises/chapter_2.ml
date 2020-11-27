@@ -35,47 +35,70 @@ module UnbalancedSet (Elt : Ordered) = struct
 
   let empty = E
 
+  (* Original [member] function with up to 2 comparisions per node *)
   let member x s =
-    let rec member = function
+    let rec member_aux = function
       | _, E -> false
       | x, T (l, y, r) ->
-          if Elt.lt (x, y) then member (x, l)
-          else if Elt.lt (y, x) then member (x, r)
+          if Elt.lt (x, y) then member_aux (x, l)
+          else if Elt.lt (y, x) then member_aux (x, r)
           else true
     in
-    member (x, s)
+    member_aux (x, s)
 
+  (* Modified [member] function with 1 comparision per node *)
   let member' x s =
-    let rec member' = function
+    let rec member_aux = function
       | _, E, None -> false
       | x, E, Some z -> Elt.eq (x, z)
       | x, T (l, y, r), z ->
-          if Elt.lt (x, y) then member' (x, l, z) else member' (x, r, Some y)
+          if Elt.lt (x, y) then member_aux (x, l, z)
+          else member_aux (x, r, Some y)
     in
-    member' (x, s, None)
+    member_aux (x, s, None)
 
+  (* Original [insert] function with up to 2 comparisions per node
+     and copying of structure when element already exists *)
   let insert x s =
-    let rec insert = function
+    let rec insert_aux = function
       | x, E -> T (E, x, E)
       | x, (T (l, y, r) as s) ->
-          if Elt.lt (x, y) then T (insert (x, l), y, r)
-          else if Elt.lt (y, x) then T (l, y, insert (x, r))
+          if Elt.lt (x, y) then T (insert_aux (x, l), y, r)
+          else if Elt.lt (y, x) then T (l, y, insert_aux (x, r))
           else s
     in
-    insert (x, s)
+    insert_aux (x, s)
 
   exception AlreadyExists
 
+  (* Modified [insert] function that avoids copying the tree
+     structure when an element already exists by using an exception. *)
   let insert' x s =
     try
-      let rec insert' x = function
+      let rec insert_aux x = function
         | E -> T (E, x, E)
         | T (l, y, r) ->
-            if Elt.lt (x, y) then T (insert' x l, y, r)
-            else if Elt.lt (y, x) then T (l, y, insert' x r)
+            if Elt.lt (x, y) then T (insert_aux x l, y, r)
+            else if Elt.lt (y, x) then T (l, y, insert_aux x r)
             else raise AlreadyExists
       in
-      insert' x s
+      insert_aux x s
+    with AlreadyExists -> s
+
+  (* Modified [insert] function that avoids copying, as above, and
+     reduces the maximum number of comparisons (using the technique
+     from [member'] *)
+  let insert'' x s =
+    try
+      let rec insert_aux = function
+        | x, E, None -> T (E, x, E)
+        | x, E, Some z ->
+            if Elt.eq (x, z) then raise AlreadyExists else T (E, x, E)
+        | x, T (l, y, r), z ->
+            if Elt.lt (x, y) then insert_aux (x, l, z)
+            else insert_aux (x, r, Some y)
+      in
+      insert_aux (x, s, None)
     with AlreadyExists -> s
 end
 
@@ -102,34 +125,20 @@ let%expect_test "Exercise 2.2" =
     member 9  s  = true
     member 10  s  = false |}]
 
-let%bench_fun "Ex 2.2: member - 2 cmp per node" =
-  let module UIS = UnbalancedSet (IntOrdered) in
-  let open UIS in
-  let s =
-    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-  in
-  fun () -> ignore (member 333 s)
+module Benchmarks = struct
+  module UIS = UnbalancedSet (IntOrdered)
+  open UIS
 
-let%bench_fun "Ex 2.2: member - 1 cmp per node" =
-  let module UIS = UnbalancedSet (IntOrdered) in
-  let open UIS in
   let s =
     List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-  in
-  fun () -> ignore (member' 333 s)
 
-let%bench_fun "Ex 2.3: insert existing - copy" =
-  let module UIS = UnbalancedSet (IntOrdered) in
-  let open UIS in
-  let s =
-    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-  in
-  fun () -> ignore (insert 333 s)
+  let%bench "Ex 2.2: member - 2 cmp/node" = member 333 s
 
-let%bench_fun "Ex 2.3: insert existing - exn" =
-  let module UIS = UnbalancedSet (IntOrdered) in
-  let open UIS in
-  let s =
-    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-  in
-  fun () -> ignore (insert' 333 s)
+  let%bench "Ex 2.2: member - 1 cmp/node" = member' 333 s
+
+  let%bench "Ex 2.3: insert existing - copy" = insert 333 s
+
+  let%bench "Ex 2.3: insert existing - exn" = insert' 333 s
+
+  let%bench "Ex 2.4: insert existing - exn + 1 cmp/node" = insert'' 333 s
+end
