@@ -35,24 +35,24 @@ module UnbalancedSet (Elt : Ordered) = struct
 
   let empty = E
 
-  let member_old x s =
-    let rec member_old = function
-      | _, E -> false
-      | x, T (l, y, r) ->
-          if Elt.lt (x, y) then member_old (x, l)
-          else if Elt.lt (y, x) then member_old (x, r)
-          else true
-    in
-    member_old (x, s)
-
   let member x s =
     let rec member = function
+      | _, E -> false
+      | x, T (l, y, r) ->
+          if Elt.lt (x, y) then member (x, l)
+          else if Elt.lt (y, x) then member (x, r)
+          else true
+    in
+    member (x, s)
+
+  let member' x s =
+    let rec member' = function
       | _, E, None -> false
       | x, E, Some z -> Elt.eq (x, z)
       | x, T (l, y, r), z ->
-          if Elt.lt (x, y) then member (x, l, z) else member (x, r, Some y)
+          if Elt.lt (x, y) then member' (x, l, z) else member' (x, r, Some y)
     in
-    member (x, s, None)
+    member' (x, s, None)
 
   let insert x s =
     let rec insert = function
@@ -63,6 +63,20 @@ module UnbalancedSet (Elt : Ordered) = struct
           else s
     in
     insert (x, s)
+
+  exception AlreadyExists
+
+  let insert' x s =
+    try
+      let rec insert' x = function
+        | E -> T (E, x, E)
+        | T (l, y, r) ->
+            if Elt.lt (x, y) then T (insert' x l, y, r)
+            else if Elt.lt (y, x) then T (l, y, insert' x r)
+            else raise AlreadyExists
+      in
+      insert' x s
+    with AlreadyExists -> s
 end
 
 let%expect_test "Exercise 2.2" =
@@ -88,23 +102,34 @@ let%expect_test "Exercise 2.2" =
     member 9  s  = true
     member 10  s  = false |}]
 
-let%bench_module "UnbalancedSet.member" =
-  ( module struct
-    let%bench_fun "with multiple comparisons per branch" =
-      let module UIS = UnbalancedSet (IntOrdered) in
-      let open UIS in
-      let s =
-        List.range 0 1000
-        |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-      in
-      fun () -> ignore (member_old 333 s)
+let%bench_fun "Ex 2.2: member - 2 cmp per node" =
+  let module UIS = UnbalancedSet (IntOrdered) in
+  let open UIS in
+  let s =
+    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
+  in
+  fun () -> ignore (member 333 s)
 
-    let%bench_fun "with single comparison per branch" =
-      let module UIS = UnbalancedSet (IntOrdered) in
-      let open UIS in
-      let s =
-        List.range 0 1000
-        |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
-      in
-      fun () -> ignore (member 333 s)
-  end )
+let%bench_fun "Ex 2.2: member - 1 cmp per node" =
+  let module UIS = UnbalancedSet (IntOrdered) in
+  let open UIS in
+  let s =
+    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
+  in
+  fun () -> ignore (member' 333 s)
+
+let%bench_fun "Ex 2.3: insert existing - copy" =
+  let module UIS = UnbalancedSet (IntOrdered) in
+  let open UIS in
+  let s =
+    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
+  in
+  fun () -> ignore (insert 333 s)
+
+let%bench_fun "Ex 2.3: insert existing - exn" =
+  let module UIS = UnbalancedSet (IntOrdered) in
+  let open UIS in
+  let s =
+    List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
+  in
+  fun () -> ignore (insert' 333 s)
