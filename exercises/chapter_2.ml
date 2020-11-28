@@ -100,18 +100,33 @@ module UnbalancedSet (Elt : Ordered) = struct
       in
       insert_aux (x, s, None)
     with AlreadyExists -> s
+
+  (* Returns a complete tree of depth [d] *)
+  let rec complete = function
+    | _, 0 -> E
+    | x, d ->
+        let sub_tree = complete (x, d - 1) in
+        T (sub_tree, x, sub_tree)
+
+  let to_string_hum s = sexp_of_t s |> Sexp.to_string_hum
 end
 
-let%expect_test "Exercise 2.2" =
-  let module UIS = UnbalancedSet (IntOrdered) in
-  let open UIS in
-  let s = T (T (E, 2, E), 3, T (E, 5, T (T (E, 7, E), 9, E))) in
-  printf "let s = %s\n" (Sexp.to_string_hum (sexp_of_t s));
-  for i = 0 to 10 do
-    printf "member %d  s  = %b\n" i (member i s)
-  done;
-  [%expect
-    {|
+module Tests = struct
+  module UIS = UnbalancedSet (IntOrdered)
+  open UIS
+
+  let flip f x y = f y x
+
+  let set_of_primes_under_10 =
+    [ 2; 3; 7; 5; 9 ] |> List.fold ~init:empty ~f:(flip insert)
+
+  let%expect_test "Ex 2.2: member" =
+    printf "let s = %s\n" (to_string_hum set_of_primes_under_10);
+    for i = 0 to 10 do
+      printf "member %d  s  = %b\n" i (member i set_of_primes_under_10)
+    done;
+    [%expect
+      {|
     let s = (T (T E 2 E) 3 (T E 5 (T (T E 7 E) 9 E)))
     member 0  s  = false
     member 1  s  = false
@@ -125,20 +140,25 @@ let%expect_test "Exercise 2.2" =
     member 9  s  = true
     member 10  s  = false |}]
 
-module Benchmarks = struct
-  module UIS = UnbalancedSet (IntOrdered)
-  open UIS
-
-  let s =
+  let set_of_1000 =
     List.range 0 1000 |> List.fold ~init:empty ~f:(fun acc x -> insert x acc)
 
-  let%bench "Ex 2.2: member - 2 cmp/node" = member 333 s
+  let%bench "Ex 2.2: member - 2 cmp/node" = member 333 set_of_1000
 
-  let%bench "Ex 2.2: member - 1 cmp/node" = member' 333 s
+  let%bench "Ex 2.2: member - 1 cmp/node" = member' 333 set_of_1000
 
-  let%bench "Ex 2.3: insert existing - copy" = insert 333 s
+  let%bench "Ex 2.3: insert existing - copy" = insert 333 set_of_1000
 
-  let%bench "Ex 2.3: insert existing - exn" = insert' 333 s
+  let%bench "Ex 2.3: insert existing - exn" = insert' 333 set_of_1000
 
-  let%bench "Ex 2.4: insert existing - exn + 1 cmp/node" = insert'' 333 s
+  let%bench "Ex 2.4: insert existing - exn + 1 cmp/node" =
+    insert'' 333 set_of_1000
+
+  let%expect_test "Ex 2.5(a): complete" =
+    match complete (0, 3) with
+    | E -> printf "fail"
+    | T (l, _, r) as tree ->
+        printf "%s\n" (to_string_hum tree);
+        printf "phys_same l r = %b" (phys_same l r);
+        [%expect {||}]
 end
