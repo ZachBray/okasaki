@@ -106,13 +106,13 @@ let%expect_test "Exercise 2.2" =
   let module UIS = UnbalancedSet (IntOrdered) in
   let open UIS in
   let s = T (T (E, 2, E), 3, T (E, 5, T (T (E, 7, E), 9, E))) in
-  printf "let s = %s\n" (Sexp.to_string (sexp_of_t s));
+  printf "let s = %s\n" (Sexp.to_string_hum (sexp_of_t s));
   for i = 0 to 10 do
     printf "member %d  s  = %b\n" i (member i s)
   done;
   [%expect
     {|
-    let s = (T(T E 2 E)3(T E 5(T(T E 7 E)9 E)))
+    let s = (T (T E 2 E) 3 (T E 5 (T (T E 7 E) 9 E)))
     member 0  s  = false
     member 1  s  = false
     member 2  s  = true
