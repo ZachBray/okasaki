@@ -101,12 +101,24 @@ module UnbalancedSet (Elt : Ordered) = struct
       insert_aux (x, s, None)
     with AlreadyExists -> s
 
-  (* Returns a complete tree of depth [d] *)
+  (* This function returns a complete tree of depth [d]
+     filled with [x]s. *)
   let rec complete = function
     | _, 0 -> E
     | x, d ->
         let sub_tree = complete (x, d - 1) in
         T (sub_tree, x, sub_tree)
+
+  let rec create2 = function
+    | x, 0 -> (E, T (E, x, E))
+    | x, n ->
+        let sub_tree, sub_tree' = create2 (x, (n - 1) / 2) in
+        if n % 2 = 1 then (T (sub_tree, x, sub_tree), T (sub_tree', x, sub_tree))
+        else (T (sub_tree', x, sub_tree), T (sub_tree', x, sub_tree'))
+
+  let rec of_size (x, n) =
+    let tree, _ = create2 (x, n) in
+    tree
 
   let to_string_hum s = sexp_of_t s |> Sexp.to_string_hum
 end
@@ -127,7 +139,7 @@ module Tests = struct
     done;
     [%expect
       {|
-    let s = (T (T E 2 E) 3 (T E 5 (T (T E 7 E) 9 E)))
+    let s = (T E 2 (T E 3 (T (T E 5 E) 7 (T E 9 E))))
     member 0  s  = false
     member 1  s  = false
     member 2  s  = true
@@ -160,5 +172,20 @@ module Tests = struct
     | T (l, _, r) as tree ->
         printf "%s\n" (to_string_hum tree);
         printf "phys_same l r = %b" (phys_same l r);
-        [%expect {||}]
+        [%expect {|
+          (T (T (T E 0 E) 0 (T E 0 E)) 0 (T (T E 0 E) 0 (T E 0 E)))
+          phys_same l r = true |}]
+
+  let%expect_test "Ex 2.5(b): of_size" =
+    printf "%s\n" (of_size (0, 0) |> to_string_hum);
+    printf "%s\n" (of_size (1, 1) |> to_string_hum);
+    printf "%s\n" (of_size (2, 2) |> to_string_hum);
+    printf "%s\n" (of_size (3, 3) |> to_string_hum);
+    printf "%s\n" (of_size (4, 4) |> to_string_hum);
+    [%expect {|
+      E
+      (T E 1 E)
+      (T (T E 2 E) 2 E)
+      (T (T E 3 E) 3 (T E 3 E))
+      (T (T (T E 4 E) 4 E) 4 (T E 4 E)) |}]
 end
